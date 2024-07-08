@@ -1,11 +1,13 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt  # Adicione esta importação no início do arquivo
 
 # Carrega os dados
-data = pd.read_csv('ObesityDataSet_raw_and_data_sinthetic.csv')
+file_path = 'ObesityDataSet_raw_and_data_sinthetic_nonDuplicates.csv'
+data = pd.read_csv(file_path)
 
 # Necessário transformar as strings em forma numérica. Encoders são usados para isso.
 label_encoders = {}
@@ -24,11 +26,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 
 # Cria o modelo Random Forest com os atributos abaixo.
 model = RandomForestClassifier(
-    n_estimators=100,  # Treina o modelo com 100 árvores de decisão.
     criterion='gini',  # Utiliza o critério de impureza gini.
-    max_depth=None,  # Não define uma profundidade máxima para as árvores.
-    min_samples_split=2, # Número mínimo de amostras necessárias para dividir um nó interno.
-    min_samples_leaf=1, # Número mínimo de amostras necessárias para estar em um nó folha.
     min_weight_fraction_leaf=0.0, # Fração ponderada mínima da soma total de pesos (de todas as amostras de entrada) necessária para estar em um nó folha.
     max_features='sqrt', # Número de recursos a serem considerados ao procurar a melhor divisão em cada nó de árvore, sqrt equivale a usar a raiz quadrada do número total de recursos.
     max_leaf_nodes=None, # Número máximo de nó folhas.
@@ -45,12 +43,50 @@ model = RandomForestClassifier(
 )
 model.fit(X_train, y_train)
 
-# Cada árvore na floresta aleatória é construída usando apenas as observaçes selecionadas na amostra bootstrap. 
-# Amostras OOB são observaçes não selecionadas para uma árvore específica e então podem ser usadas para testar e avaliar a acurácia. 
-# Ela usa variaçes geradas pelo boostrap para treinar cada árvore e então usa as amostras OOB para avaliar a acurácia.
-print("Score OOB:", model.oob_score_)
+# Define o dicionário de parâmetros para o GridSearchCV
+param_grid = {
+    'n_estimators': [100, 200, 300], # Treina o modelo com n árvores de decisão.
+    'max_depth': [None, 10, 20, 30], # Define a profundidade máxima das árvores.
+    'min_samples_split': [2, 5, 10], # Número mínimo de amostras necessárias para dividir um nó interno.
+    'min_samples_leaf': [1, 2, 4], # Número mínimo de amostras necessárias para estar em um nó folha.
+}
+
+# Configura o GridSearchCV
+grid_search = GridSearchCV(estimator=model, param_grid=param_grid, cv=3, verbose=2, n_jobs=-1, error_score='raise')
+
+# Treina o GridSearchCV
+try:
+    grid_search.fit(X_train, y_train)
+except ValueError as e:
+    print("Erro durante o ajuste do modelo:", e)
+
+# Imprime os melhores parâmetros e a melhor pontuação
+print("Melhores parâmetros:", grid_search.best_params_)
+print("Melhor pontuação:", grid_search.best_score_)
+
+# Imprime a importância de cada recurso
+feature_importances = pd.Series(grid_search.best_estimator_.feature_importances_, index=X.columns)
+print("Importância de cada recurso:")
+print(feature_importances.sort_values(ascending=False))
+
+
+# # Gerar PNG com a importância dos recursos
+# # Plotando a importância dos recursos
+# plt.figure(figsize=(12, 8))
+# feature_importances.sort_values().plot(kind='barh')
+# plt.title('Importância de cada recurso no modelo Random Forest')
+# plt.xlabel('Grau de importância')
+# plt.ylabel('Recursos')
+# plt.savefig('/home/x/feature_importances.png')  # defina o caminho do arquivo PNG
+# plt.close()  # Fecha a figura para liberar memória
+
+# Verifica se o melhor modelo usa bootstrap
+if grid_search.best_estimator_.get_params()['bootstrap']:
+    print("Score OOB:", grid_search.best_estimator_.oob_score_)
+else:
+    print("OOB score não disponível, pois bootstrap está desativado.")
 
 # Faz a predição com base nos dados de teste e avalia a acurácia do modelo.
-y_pred = model.predict(X_test)
+y_pred = grid_search.best_estimator_.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 print(f'Acurácia: {accuracy:.2f}')
