@@ -1,77 +1,76 @@
 import pandas as pd
-from sklearn.model_selection import KFold, GridSearchCV
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.svm import SVC
-from sklearn.metrics import confusion_matrix, accuracy_score
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import accuracy_score, confusion_matrix
 
-file_path = 'after_preprocessing.csv'
-df = pd.read_csv(file_path)
+obesity = pd.read_csv('after_preprocessing.csv')
 
-X = df.drop('NObeyesdad', axis=1)
-y = df['NObeyesdad']
+X = obesity.drop('NObeyesdad', axis=1)
+y = obesity['NObeyesdad']
 
-categorical_cols = X.select_dtypes(include=['object']).columns
-numerical_cols = X.select_dtypes(include=['float64', 'int64']).columns
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+categorical_cols = X.select_dtypes(include=['object', 'category']).columns
+numerical_cols = X.select_dtypes(include=['number']).columns
 
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), numerical_cols),
-        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_cols)
-    ])
-
-svm_model = SVC()
-param_grid = {
-    'classifier__C': [0.0001, 0.0005, 0.001, 0.005, 0.1, 0.5, 1,  5, 10, 50, 100, 500],
-    'classifier__gamma': [0.0001, 0.0005, 0.001, 0.005, 0.1, 0.5, 1,  5, 10, 50, 100, 500],
-    'classifier__kernel': ['rbf']
-}
+        ('cat', OneHotEncoder(), categorical_cols)
+    ]
+)
 
 pipeline = Pipeline(steps=[
     ('preprocessor', preprocessor),
-    ('classifier', svm_model)
+    ('classifier', SVC())
 ])
 
-grid_search = GridSearchCV(estimator=pipeline, param_grid=param_grid, cv=5, scoring='accuracy', n_jobs=-1)
+param_grid = {
+    'classifier__C': [0.1, 1, 10],
+    'classifier__gamma': [0.001, 0.01, 0.1],
+    'classifier__kernel': ['rbf']
+}
 
-outer_cv = KFold(n_splits=5, shuffle=True, random_state=42)
-inner_cv = KFold(n_splits=5, shuffle=True, random_state=42)
+grid_search = GridSearchCV(estimator=pipeline, param_grid=param_grid, scoring='accuracy', cv=5, verbose=4, error_score='raise')
 
-validation_accuracies = []
-test_accuracies = []
-confusion_matrices = []
+grid_search.fit(X_train, y_train)
 
-for train_val_index, test_index in outer_cv.split(X):
-    X_train_val, X_test = X.iloc[train_val_index], X.iloc[test_index]
-    y_train_val, y_test = y.iloc[train_val_index], y.iloc[test_index]
-    
-    grid_search.fit(X_train_val, y_train_val)
-    best_model = grid_search.best_estimator_
-    
-    y_pred_test = best_model.predict(X_test)
-    
-    # Calculate accuracies
-    test_accuracy = accuracy_score(y_test, y_pred_test)
-    validation_accuracy = grid_search.best_score_
-    
-    validation_accuracies.append(validation_accuracy)
-    test_accuracies.append(test_accuracy)
-    confusion_matrices.append(confusion_matrix(y_test, y_pred_test))
+best_params = grid_search.best_params_
+print("Melhores parâmetros:", best_params)
 
-avg_validation_accuracy = np.mean(validation_accuracies)
-avg_test_accuracy = np.mean(test_accuracies)
-avg_confusion_matrix = np.mean(confusion_matrices, axis=0)
+y_pred_test = grid_search.predict(X_test)
 
-print(f"Validation Accuracy: {avg_validation_accuracy:.4f}")
-print(f"Test Accuracy: {avg_test_accuracy:.4f}")
+test_accuracy = accuracy_score(y_test, y_pred_test)
+print("Acurácia no conjunto de teste:", test_accuracy)
 
-plt.figure(figsize=(10, 7))
-sns.heatmap(avg_confusion_matrix, annot=True, fmt=".2f", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y))
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-plt.title('Confusion Matrix')
+conf_matrix = confusion_matrix(y_test, y_pred_test)
+#plt.rc('font', size=12)
+plt.figure(figsize=(20, 20))
+sns.heatmap(conf_matrix, annot=True, fmt="d", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y))
+plt.xlabel('Predito')
+plt.ylabel('Real')
+plt.title('Matriz de Confusão - Conjunto de Teste')
+plt.show()
+
+X_train_final, X_val, y_train_final, y_val = train_test_split(X_train, y_train, test_size=0.25, random_state=42)
+
+grid_search.fit(X_train_final, y_train_final)
+
+y_pred_val = grid_search.predict(X_val)
+
+val_accuracy = accuracy_score(y_val, y_pred_val)
+print("Acurácia no conjunto de validação:", val_accuracy)
+
+conf_matrix_val = confusion_matrix(y_val, y_pred_val)
+plt.figure(figsize=(20, 20))
+sns.heatmap(conf_matrix_val, annot=True, fmt="d", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y))
+plt.xlabel('Predito')
+plt.ylabel('Real')
+plt.title('Matriz de Confusão - Conjunto de Validação')
 plt.show()
