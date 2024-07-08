@@ -61,7 +61,7 @@ avg_confusion_matrix = np.mean(confusion_matrices, axis=0)
 print(f"Validation Accuracy: {avg_validation_accuracy:.4f}")
 print(f"Test Accuracy: {avg_test_accuracy:.4f}")
 
-plt.figure(figsize=(10, 7))
+plt.figure(figsize=(20, 20))
 sns.heatmap(avg_confusion_matrix, annot=True, fmt=".2f", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y))
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
