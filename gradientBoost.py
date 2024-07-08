@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-obesity = pd.read_csv('final.csv')
+obesity = pd.read_csv('after_preprocessing.csv')
 obesity.head()
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
