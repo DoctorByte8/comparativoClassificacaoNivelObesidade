@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.model_selection import KFold, cross_val_score
+from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
@@ -9,74 +9,66 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Load the CSV file
-file_path = 'ObesityDataSet_raw_and_data_sinthetic_nonDuplicates.csv'
+file_path = 'after_preprocessing.csv'
 df = pd.read_csv(file_path)
 
-# Separate features and target variable
 X = df.drop('NObeyesdad', axis=1)
 y = df['NObeyesdad']
 
-# Identify categorical and numerical columns
 categorical_cols = X.select_dtypes(include=['object']).columns
 numerical_cols = X.select_dtypes(include=['float64', 'int64']).columns
 
-# Preprocess the data
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), numerical_cols),
         ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_cols)
     ])
 
-# Initialize SVM model
 svm_model = SVC()
+param_grid = {
+    'classifier__C': [0.0001, 0.0005, 0.001, 0.005, 0.1, 0.5, 1,  5, 10, 50, 100, 500],
+    'classifier__gamma': [0.0001, 0.0005, 0.001, 0.005, 0.1, 0.5, 1,  5, 10, 50, 100, 500],
+    'classifier__kernel': ['rbf']
+}
 
-# Create a pipeline
 pipeline = Pipeline(steps=[
     ('preprocessor', preprocessor),
     ('classifier', svm_model)
 ])
 
-# Setup nested cross-validation
-outer_cv = KFold(n_splits=5, shuffle=True, random_state=42)
-inner_cv = KFold(n_splits=4, shuffle=True, random_state=42)
+grid_search = GridSearchCV(estimator=pipeline, param_grid=param_grid, cv=5, scoring='accuracy', n_jobs=-1)
 
-# Lists to store results
+outer_cv = KFold(n_splits=5, shuffle=True, random_state=42)
+inner_cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
 validation_accuracies = []
 test_accuracies = []
 confusion_matrices = []
 
-# Nested cross-validation
 for train_val_index, test_index in outer_cv.split(X):
     X_train_val, X_test = X.iloc[train_val_index], X.iloc[test_index]
     y_train_val, y_test = y.iloc[train_val_index], y.iloc[test_index]
     
-    # Inner cross-validation
-    inner_accuracies = cross_val_score(pipeline, X_train_val, y_train_val, cv=inner_cv, scoring='accuracy')
+    grid_search.fit(X_train_val, y_train_val)
+    best_model = grid_search.best_estimator_
     
-    # Fit pipeline on entire training+validation set and evaluate on test set
-    pipeline.fit(X_train_val, y_train_val)
-    y_pred_test = pipeline.predict(X_test)
+    y_pred_test = best_model.predict(X_test)
     
     # Calculate accuracies
     test_accuracy = accuracy_score(y_test, y_pred_test)
-    validation_accuracy = np.mean(inner_accuracies)
+    validation_accuracy = grid_search.best_score_
     
-    # Store results
     validation_accuracies.append(validation_accuracy)
     test_accuracies.append(test_accuracy)
     confusion_matrices.append(confusion_matrix(y_test, y_pred_test))
 
-# Average results
 avg_validation_accuracy = np.mean(validation_accuracies)
 avg_test_accuracy = np.mean(test_accuracies)
 avg_confusion_matrix = np.mean(confusion_matrices, axis=0)
 
-# Print accuracies
 print(f"Validation Accuracy: {avg_validation_accuracy:.4f}")
 print(f"Test Accuracy: {avg_test_accuracy:.4f}")
 
-# Plot confusion matrix
 plt.figure(figsize=(10, 7))
 sns.heatmap(avg_confusion_matrix, annot=True, fmt=".2f", cmap="Blues", xticklabels=np.unique(y), yticklabels=np.unique(y))
 plt.xlabel('Predicted')
