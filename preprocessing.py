@@ -4,7 +4,6 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from google.colab import files
 from sklearn.preprocessing import OrdinalEncoder
 from imblearn.over_sampling import SMOTE
 
