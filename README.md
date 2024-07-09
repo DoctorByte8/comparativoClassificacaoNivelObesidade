@@ -7,7 +7,7 @@ Principais conhecimentos usados:
 - Programação imperativa;
 - Aprendizado de máquina supervisionado;
 - Classificação;
-- Análise de dados.bgfhtht
+- Análise de dados.
 
 Principais tecnologias usadas:
 - Python;
